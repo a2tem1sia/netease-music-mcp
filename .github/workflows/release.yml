@@ -22,7 +22,7 @@ jobs:
   mcpb:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: refs/tags/${{ env.TAG }}
       - uses: actions/setup-node@v5
