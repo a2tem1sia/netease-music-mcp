@@ -1,12 +1,22 @@
 # 在 GitHub 网页上发布 Release 后，自动构建 .mcpb 并附加到这个 Release。
+# 也可以在 Actions → Release → Run workflow 手动运行，为已有的 Release 重新构建并替换安装包
+# （例如编辑了 Release 而不是新建，自动构建没有触发时）。
 name: Release
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要构建并附加安装包的 Release 标签，例如 v0.1.1"
+        required: true
 
 permissions:
   contents: write
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
 jobs:
   mcpb:
@@ -14,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: refs/tags/${{ env.TAG }}
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -22,8 +32,8 @@ jobs:
       - name: Check tag matches package.json version
         run: |
           version="v$(node -p "require('./package.json').version")"
-          if [ "$version" != "${{ github.event.release.tag_name }}" ]; then
-            echo "::error::Release tag ${{ github.event.release.tag_name }} does not match package.json version $version"
+          if [ "$version" != "$TAG" ]; then
+            echo "::error::Release tag $TAG does not match package.json version $version"
             exit 1
           fi
       - run: npm ci
@@ -32,4 +42,4 @@ jobs:
       - name: Upload .mcpb to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" netease-music-mcp-*.mcpb --clobber
+        run: gh release upload "$TAG" netease-music-mcp-*.mcpb --clobber
