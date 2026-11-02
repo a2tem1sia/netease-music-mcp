@@ -58,7 +58,7 @@
     "@anthropic-ai/mcpb": "^2.1.2",
     "@types/node": "^22.10.0",
     "@types/qrcode": "^1.5.5",
-    "typescript": "^5.7.0"
+    "typescript": "^7.0.2"
   },
   "overrides": {
     "tmp": "^0.2.6",
