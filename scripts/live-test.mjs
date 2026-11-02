@@ -151,6 +151,9 @@ if (netease.loggedIn) {
   await step("我的歌单", "get_user_playlists", { limit: 5 }, (d) =>
     expect(d.playlists?.length > 0, `${d.playlists.length} 个，如 ${d.playlists[0].name}`),
   );
+  await step("最近播放", "get_recent_plays", { limit: 3 }, (d) =>
+    expect(d.songs?.length > 0 && d.songs[0].played_at, `最近一首：${d.songs?.[0]?.name}（${d.songs?.[0]?.ago}）`),
+  );
   await step("听歌排行（周）", "get_listening_history", { period: "week", limit: 5 }, (d) =>
     expect(Array.isArray(d.songs), `${d.songs.length} 首` + (d.songs[0] ? `，第一 ${d.songs[0].name}` : "")),
   );

@@ -25,6 +25,14 @@ export function date(ms: number | undefined): string | undefined {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+/** 本地时间 YYYY-MM-DD HH:mm */
+export function dateTime(ms: number | undefined): string | undefined {
+  if (!ms || ms <= 0) return undefined;
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 /** fee: 0 免费 / 1 VIP / 4 购买专辑 / 8 非会员可免费播放低音质 */
 function feeLabel(fee: number | undefined): string | undefined {
   switch (fee) {

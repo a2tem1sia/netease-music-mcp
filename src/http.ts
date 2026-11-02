@@ -63,7 +63,8 @@ export function startHttp(client: NeteaseClient, opts: { port: number; host: str
     }
 
     // 无状态：每个请求新建一个 MCP server + transport，共享同一个网易云客户端（同一份登录状态）
-    const server = createServer(client);
+    // 远程模式默认不提供本机播放控制（否则控制的是服务器而不是用户的电脑）；在自己电脑上跑 HTTP 模式时可设 NETEASE_LOCAL_CONTROL=1 开启
+    const server = createServer(client, { localControl: process.env.NETEASE_LOCAL_CONTROL === "1" });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => {
       void transport.close();

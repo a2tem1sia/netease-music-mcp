@@ -14,7 +14,8 @@ const out = join(root, `netease-music-mcp-${pkg.version}.mcpb`);
 // 1. 从实际服务器读取工具名称和描述
 const { NeteaseClient } = await import(join(root, "dist/client.js"));
 const { createServer } = await import(join(root, "dist/tools.js"));
-const server = createServer(new NeteaseClient({ jar: {} }));
+// .mcpb 扩展总是运行在用户自己的电脑上，所以包含本机播放控制工具
+const server = createServer(new NeteaseClient({ jar: {} }), { localControl: true });
 const [a, b] = InMemoryTransport.createLinkedPair();
 const client = new Client({ name: "pack", version: "1" });
 await Promise.all([server.connect(a), client.connect(b)]);

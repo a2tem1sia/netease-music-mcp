@@ -21,7 +21,7 @@ function argValue(name: string): string | undefined {
 }
 
 async function runStdio(client: NeteaseClient) {
-  const server = createServer(client);
+  const server = createServer(client, { localControl: process.env.NETEASE_LOCAL_CONTROL !== "0" });
   await server.connect(new StdioServerTransport());
   log(`stdio 模式已启动 v${SERVER_VERSION}，登录状态：${client.loggedIn ? `已登录（${client.cookieSource}）` : "未登录"}`);
 }

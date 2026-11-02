@@ -8,17 +8,44 @@ import { z } from "zod";
 import { NeteaseClient, NeteaseError } from "./client.js";
 import { parseCookieString } from "./cookies.js";
 import * as F from "./format.js";
+import { APP_RESOURCE_TYPES, MEDIA_ACTIONS, type Runner, defaultRunner, openUrl, orpheusPlayUrl, sendMediaKey } from "./local.js";
 
 export const SERVER_NAME = "netease-music";
-export const SERVER_VERSION = "0.1.1";
+export const SERVER_VERSION = "0.2.0";
 
-const INSTRUCTIONS = `网易云音乐 (music.163.com) 连接器。
+const BASE_INSTRUCTIONS = `网易云音乐 (music.163.com) 连接器。
 - 歌曲、歌单、专辑、歌手都用数字 ID 标识。先用 search 找到 ID，再用 get_* 工具查看详情。
 - 排行榜（飙升榜、热歌榜等）本质上是歌单：get_toplists 拿到榜单 ID 后用 get_playlist 查看曲目。
 - 带 "我的"/需要登录的功能（每日推荐、我喜欢的音乐、我的歌单、听歌排行、收藏/建歌单）需要先登录：
   调用 login_qr_start 获得二维码，请用户用网易云音乐 App 扫码并确认，然后调用 login_qr_check。
 - 返回结果里的 link 是网页链接，可以直接给用户点开播放。
-- 修改类操作（like_song、create_playlist、update_playlist_tracks）会改动用户的真实账号，执行前先向用户确认。`;
+- 修改类操作（like_song、create_playlist、update_playlist_tracks）会改动用户的真实账号，执行前先向用户确认。
+- get_recent_plays 返回最近播放记录（所有设备，通常有几分钟延迟），可以回答“我刚才在听什么”。`;
+
+const LOCAL_INSTRUCTIONS = `
+- 本连接器运行在用户自己的电脑上，可以控制电脑上的网易云客户端：play_in_app 让客户端播放指定的歌曲 / 歌单 / 专辑 / 歌手，
+  playback_control 发送系统媒体键（播放/暂停、上一首、下一首、音量）。媒体键作用于系统当前“正在播放”的应用。`;
+
+const REMOTE_INSTRUCTIONS = `
+- 当前是远程模式，无法控制用户设备上的播放；需要播放时把结果里的 link 给用户。`;
+
+export interface ServerOptions {
+  /** 是否提供 play_in_app / playback_control（只在连接器运行在用户自己电脑上时开启） */
+  localControl?: boolean;
+  /** 测试用 */
+  platform?: NodeJS.Platform;
+  /** 测试用 */
+  run?: Runner;
+}
+
+function agoText(ms: number): string {
+  const min = Math.max(0, Math.round(ms / 60000));
+  if (min < 1) return "刚刚";
+  if (min < 60) return `${min} 分钟前`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} 小时前`;
+  return `${Math.round(h / 24)} 天前`;
+}
 
 const id = (what: string) => z.coerce.number().int().positive().describe(`${what} ID（数字）`);
 const limit = (def: number, max: number) =>
@@ -78,8 +105,14 @@ async function resolveUid(client: NeteaseClient, uid?: number): Promise<number> 
   return uid ?? (await client.myUid());
 }
 
-export function createServer(client: NeteaseClient): McpServer {
-  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: INSTRUCTIONS });
+export function createServer(client: NeteaseClient, opts: ServerOptions = {}): McpServer {
+  const localControl = opts.localControl ?? false;
+  const platform = opts.platform ?? process.platform;
+  const runner = opts.run ?? defaultRunner;
+  const server = new McpServer(
+    { name: SERVER_NAME, version: SERVER_VERSION },
+    { instructions: BASE_INSTRUCTIONS + (localControl ? LOCAL_INSTRUCTIONS : REMOTE_INSTRUCTIONS) },
+  );
 
   // ------------------------------------------------------------------ 公开数据
 
@@ -615,6 +648,88 @@ export function createServer(client: NeteaseClient): McpServer {
         };
       }),
   );
+
+  server.registerTool(
+    "get_recent_plays",
+    {
+      title: "最近播放",
+      description: "获取当前登录用户最近播放的歌曲（来自所有设备，按时间倒序，通常有几分钟延迟），可以回答“我刚才在听什么”。需要登录。",
+      inputSchema: { limit: limit(10, 100) },
+      annotations: { title: "最近播放", ...READ },
+    },
+    ({ limit }) =>
+      run(async () => {
+        await client.myUid();
+        const { body } = await client.request("/api/play-record/song/list", { limit });
+        const now = Date.now();
+        const list: any[] = (body.data?.list ?? []).slice(0, limit);
+        return {
+          note: "播放记录通常比实际播放晚几分钟；第一首可能就是正在播放的歌。",
+          songs: list.map((x) => ({ ...F.song(x.data), played_at: F.dateTime(x.playTime), ago: agoText(now - x.playTime) })),
+        };
+      }),
+  );
+
+  // ------------------------------------------------------------------ 本机播放控制（仅本地模式）
+
+  if (localControl) {
+    server.registerTool(
+      "play_in_app",
+      {
+        title: "在网易云客户端播放",
+        description:
+          "让这台电脑上的网易云音乐客户端播放指定的歌曲、歌单、专辑、歌手热门歌曲或电台（客户端没打开时会先启动）。" +
+          "ID 可以从 search、get_* 等工具获得。",
+        inputSchema: {
+          type: z.enum(APP_RESOURCE_TYPES).default("song").describe("song 歌曲 / playlist 歌单 / album 专辑 / artist 歌手 / djradio 电台"),
+          id: id("要播放的资源"),
+        },
+        annotations: { title: "在网易云客户端播放", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      },
+      ({ type, id }) =>
+        run(async () => {
+          let name: string | undefined;
+          if (type === "song") {
+            try {
+              const [s] = await songDetails(client, [id]);
+              if (s) name = `${s.name} - ${s.artists}`;
+            } catch {
+              /* 只用于展示，忽略 */
+            }
+          }
+          await openUrl(orpheusPlayUrl(type, id), platform, runner);
+          return {
+            success: true,
+            type,
+            id,
+            name,
+            note: "已让网易云客户端播放。如果客户端只打开了页面而没有开始播放，可以再调用 playback_control（play_pause）。",
+          };
+        }),
+    );
+
+    server.registerTool(
+      "playback_control",
+      {
+        title: "播放控制",
+        description:
+          "控制这台电脑上的播放：播放/暂停、上一首、下一首、调节系统音量、静音。通过系统媒体键实现，作用于系统当前“正在播放”的应用" +
+          "（正在用网易云听歌时就是网易云）。macOS 第一次使用需要在“系统设置 → 隐私与安全性 → 辅助功能”里允许 Claude。",
+        inputSchema: {
+          action: z
+            .enum(MEDIA_ACTIONS)
+            .describe("play_pause 播放/暂停 / next 下一首 / previous 上一首 / volume_up 音量+ / volume_down 音量- / mute 静音开关"),
+          times: z.coerce.number().int().min(1).max(10).default(1).describe("重复次数，用于连续调节音量，默认 1"),
+        },
+        annotations: { title: "播放控制", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      },
+      ({ action, times }) =>
+        run(async () => {
+          for (let i = 0; i < times; i++) await sendMediaKey(action, platform, runner);
+          return { success: true, action, times };
+        }),
+    );
+  }
 
   // ------------------------------------------------------------------ 修改操作（需登录）
 
