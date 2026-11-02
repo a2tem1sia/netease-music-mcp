@@ -299,6 +299,52 @@ test("扫码登录全流程：生成二维码 → 等待 → 成功并保存 coo
   assert.ok(calls.length > 0);
 });
 
+test("get_liked_songs：按“我喜欢的音乐”歌单顺序（最近喜欢在前），附带喜欢日期", async () => {
+  const day = (d) => Date.UTC(2026, 10, d);
+  const { call } = await connect(
+    {
+      "/weapi/w/nuser/account/get": () => ({ code: 200, account: { id: 42 }, profile: { userId: 42 } }),
+      "/weapi/user/playlist": () => ({ code: 200, playlist: [{ id: 900, specialType: 5, name: "x喜欢的音乐", creator: { userId: 42 } }, { id: 901, specialType: 0 }] }),
+      "/weapi/v6/playlist/detail": (d) => {
+        assert.equal(d.id, 900);
+        return { code: 200, playlist: { id: 900, trackIds: [{ id: 3, at: day(2) }, { id: 1, at: day(1) }, { id: 2, at: day(1) - 86400000 }] } };
+      },
+      // 故意乱序返回，验证按请求顺序重排
+      "/weapi/v3/song/detail": (d) => {
+        const ids = JSON.parse(d.c).map((x) => x.id);
+        return { code: 200, songs: [...ids].reverse().map((x) => SONG(x, "s" + x)) };
+      },
+      "/weapi/song/like/get": () => {
+        throw new Error("有歌单时不应调用无序的 like/get");
+      },
+    },
+    { jar: { MUSIC_U: "u" } },
+  );
+  const { data } = await call("get_liked_songs", { limit: 2 });
+  assert.equal(data.total, 3);
+  assert.equal(data.order, "最近喜欢的在前");
+  assert.deepEqual(data.songs.map((s) => [s.id, s.liked_at]), [[3, "2026-11-02"], [1, "2026-11-01"]]);
+  assert.equal(data.has_more, true);
+});
+
+test("get_liked_songs：读不到歌单时回退到 like/get，并标注顺序未知", async () => {
+  const { call } = await connect(
+    {
+      "/weapi/user/playlist": () => ({ code: 200, playlist: [] }),
+      "/weapi/song/like/get": (d) => {
+        assert.equal(d.uid, 7);
+        return { code: 200, ids: [5, 6] };
+      },
+      "/weapi/v3/song/detail": (d) => ({ code: 200, songs: JSON.parse(d.c).map((x) => SONG(x.id, "s" + x.id)) }),
+    },
+    { jar: { MUSIC_U: "u" } },
+  );
+  const { data } = await call("get_liked_songs", { uid: 7 });
+  assert.equal(data.order, "顺序未知");
+  assert.deepEqual(data.songs.map((s) => s.id), [5, 6]);
+  assert.equal(data.songs[0].liked_at, undefined);
+});
+
 test("扫码登录：风控 8821 时给出替代方案", async () => {
   const { call } = await connect({
     "/weapi/login/qrcode/client/login": () => ({ code: 8821, message: "需要行为验证码验证" }),

@@ -142,7 +142,11 @@ if (netease.loggedIn) {
     expect(Array.isArray(d.playlists), `${d.playlists.length} 个`),
   );
   await step("我喜欢的音乐", "get_liked_songs", { limit: 5 }, (d) =>
-    expect(typeof d.total === "number", `共 ${d.total} 首`),
+    expect(
+      typeof d.total === "number" && d.order === "最近喜欢的在前" && d.songs[0]?.liked_at,
+      `共 ${d.total} 首，最近喜欢：${d.songs[0]?.name}（${d.songs[0]?.liked_at}）`,
+      "没有按喜欢时间排序",
+    ),
   );
   await step("我的歌单", "get_user_playlists", { limit: 5 }, (d) =>
     expect(d.playlists?.length > 0, `${d.playlists.length} 个，如 ${d.playlists[0].name}`),

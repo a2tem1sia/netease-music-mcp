@@ -1,6 +1,6 @@
 {
   "name": "netease-music-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "网易云音乐 MCP connector：搜索、歌单、歌词、评论、每日推荐、扫码登录、歌单管理",
   "type": "module",
   "license": "MIT",

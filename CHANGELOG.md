@@ -2,6 +2,18 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.1.1] - 2026-11-02
+
+### 修复
+
+- `get_liked_songs` 返回的顺序和 App 里“我喜欢的音乐”不一致：`/api/song/like/get` 的 ID 没有固定顺序。现在改为读取“我喜欢的音乐”歌单，最近喜欢的在前，并附带喜欢日期 `liked_at`；读不到歌单时才回退，并标注“顺序未知”
+- 批量获取歌曲详情时按请求的 ID 顺序重新排列（接口不保证顺序），影响 `get_playlist` 等工具
+
+### 验证
+
+- 修改账号的 3 个工具（`create_playlist`、`update_playlist_tracks`、`like_song`）已在真实账号上验证：新建私密歌单、加歌、重复添加报错、删歌、收藏 / 取消收藏，测试后账号还原
+- 21 个工具现在全部在真实网易云服务器上验证过
+
 ## [0.1.0] - 2026-11-02
 
 首个版本。
@@ -18,4 +30,5 @@
 - 境外网络下登录后搜索结果为空：网易云会对境外 IP 返回加密结果，现在会自动换用其它接口
 - 升级 zod 到 4.x，修复 GHSA-mrhx-c7xc-m3w5（校验超大数组时内存耗尽）
 
+[0.1.1]: https://github.com/a2tem1sia/netease-music-mcp/releases/tag/v0.1.1
 [0.1.0]: https://github.com/a2tem1sia/netease-music-mcp/releases/tag/v0.1.0

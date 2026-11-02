@@ -10,7 +10,7 @@ import { parseCookieString } from "./cookies.js";
 import * as F from "./format.js";
 
 export const SERVER_NAME = "netease-music";
-export const SERVER_VERSION = "0.1.0";
+export const SERVER_VERSION = "0.1.1";
 
 const INSTRUCTIONS = `网易云音乐 (music.163.com) 连接器。
 - 歌曲、歌单、专辑、歌手都用数字 ID 标识。先用 search 找到 ID，再用 get_* 工具查看详情。
@@ -69,7 +69,9 @@ async function songDetails(client: NeteaseClient, ids: number[]) {
     });
     out.push(...F.songs(body.songs, body.privileges));
   }
-  return out;
+  // 接口不保证按请求顺序返回，这里按传入的 ID 顺序重新排列
+  const byId = new Map(out.map((s) => [s?.id, s]));
+  return ids.map((x) => byId.get(x)).filter((s): s is NonNullable<typeof s> => Boolean(s));
 }
 
 async function resolveUid(client: NeteaseClient, uid?: number): Promise<number> {
@@ -511,20 +513,40 @@ export function createServer(client: NeteaseClient): McpServer {
     "get_liked_songs",
     {
       title: "我喜欢的音乐",
-      description: "获取用户“喜欢”的歌曲（默认当前登录用户）。",
+      description: "获取用户“喜欢”的歌曲（默认当前登录用户），和 App 里“我喜欢的音乐”歌单顺序一致：最近喜欢的在前，附带喜欢的日期。",
       inputSchema: { uid: uidParam, limit: limit(50, 500), offset },
       annotations: { title: "我喜欢的音乐", ...READ },
     },
     ({ uid, limit, offset }) =>
       run(async () => {
         const userId = await resolveUid(client, uid);
-        const { body } = await client.request("/api/song/like/get", { uid: userId }, { fallback: "eapi" });
-        const ids: number[] = body.ids ?? [];
+        // 优先读“我喜欢的音乐”歌单（specialType 5）：trackIds 按喜欢时间倒序，并带有喜欢时间 at。
+        // /api/song/like/get 返回的 ID 没有固定顺序，只在读不到歌单时（例如他人的隐私歌单）作为后备。
+        let ordered: { id: number; at?: number }[] | undefined;
+        try {
+          const { body: pl } = await client.request("/api/user/playlist", { uid: userId, limit: 30, offset: 0, includeVideo: true });
+          const likedPl = (pl.playlist ?? []).find((p: any) => p.specialType === 5);
+          if (likedPl) {
+            const { body } = await client.request("/api/v6/playlist/detail", { id: likedPl.id, n: 100000, s: 8 }, { fallback: "eapi" });
+            if (Array.isArray(body.playlist?.trackIds)) ordered = body.playlist.trackIds;
+          }
+        } catch (err) {
+          if (err instanceof NeteaseError && (err.code === -1 || err.code === 301)) throw err;
+        }
+        if (!ordered) {
+          const { body } = await client.request("/api/song/like/get", { uid: userId }, { fallback: "eapi" });
+          ordered = (body.ids ?? []).map((x: number) => ({ id: x }));
+        }
+        const all = ordered ?? [];
+        const page = all.slice(offset, offset + limit);
+        const likedAt = new Map(page.map((t) => [t.id, F.date(t.at)]));
+        const songs = (await songDetails(client, page.map((t) => t.id))).map((s) => ({ ...s, liked_at: likedAt.get(s.id as number) }));
         return {
-          total: ids.length,
+          total: all.length,
           offset,
-          songs: await songDetails(client, ids.slice(offset, offset + limit)),
-          has_more: offset + limit < ids.length,
+          order: all.some((t) => t.at) ? "最近喜欢的在前" : "顺序未知",
+          songs,
+          has_more: offset + limit < all.length,
         };
       }),
   );
