@@ -28,6 +28,9 @@ const PC_CLIENT = {
 
 export type Crypto = "weapi" | "eapi";
 
+/** 境外网络返回加密数据时使用的错误码（本连接器自定义） */
+export const ABROAD_CODE = -2;
+
 export interface RequestOptions {
   crypto?: Crypto;
   /** 除 200 之外，这些 code 也视为正常返回（例如扫码登录的 800-803） */
@@ -198,6 +201,16 @@ export class NeteaseClient {
         ? res.headers.getSetCookie()
         : (res.headers.get("set-cookie")?.split(/,(?=\s*[A-Za-z0-9_]+=)/) ?? []);
     const setCookies = parseSetCookie(setCookieHeaders);
+
+    // 网易云把请求识别为境外网络时，部分接口会返回 { abroad: true, result: "<加密字符串>" }。
+    // 视为可恢复的错误，让调用方回退到其它接口。
+    if (body?.abroad === true && typeof body?.result === "string") {
+      throw new NeteaseError(
+        "网易云把当前网络识别为境外，返回了加密数据。请在中国大陆网络环境下使用，或稍后重试。",
+        ABROAD_CODE,
+        body,
+      );
+    }
 
     const code = Number(body?.code ?? res.status);
     if (code === 200 || opts.okCodes?.includes(code)) return { body, setCookies };

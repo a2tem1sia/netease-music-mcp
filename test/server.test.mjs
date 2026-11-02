@@ -110,17 +110,18 @@ test("工具列表", async () => {
   assert.equal(tools.find((t) => t.name === "update_playlist_tracks").annotations.destructiveHint, true);
 });
 
-test("search：歌曲 + 设备 cookie", async () => {
+test("search：歌曲（PC 接口 eapi cloudsearch/pc）", async () => {
   const { call, calls } = await connect({
-    "/weapi/cloudsearch/get/web": (d) => {
+    "/eapi/cloudsearch/pc": (d) => {
       assert.equal(d.s, "晴天");
       assert.equal(d.type, 1);
       assert.equal(d.limit, 5);
-      assert.equal(d.csrf_token, "");
+      assert.equal(d.header.os, "pc");
       return { code: 200, result: { songCount: 300, songs: [{ ...SONG(186016, "晴天"), privilege: { st: 0 } }] } };
     },
   });
   const { data } = await call("search", { keywords: "晴天", limit: 5 });
+  assert.deepEqual(calls.map((c) => c.path), ["/eapi/cloudsearch/pc"]);
   assert.equal(data.total, 300);
   assert.deepEqual(data.songs[0], {
     id: 186016,
@@ -133,23 +134,37 @@ test("search：歌曲 + 设备 cookie", async () => {
     fee: "VIP",
     link: "https://music.163.com/#/song?id=186016",
   });
-  assert.match(calls[0].cookie, /_ntes_nuid=[0-9a-f]{32}/);
-  assert.match(calls[0].cookie, /NMTID=00O/);
-  assert.equal(calls[0].headers.Referer, "https://music.163.com");
 });
 
-test("search：cloudsearch 失败时回退到 search/get（旧格式字段）", async () => {
+test("search：PC 接口失败 / 返回境外加密结果时回退到网页版 search/get", async () => {
+  for (const eapiReply of [{ code: 400, msg: "bad" }, { code: 200, abroad: true, result: "35b174dd82395f39" }]) {
+    const { call, calls } = await connect({
+      "/eapi/cloudsearch/pc": () => eapiReply,
+      "/weapi/search/get": (d) => {
+        assert.equal(d.type, 1000);
+        return { code: 200, result: { playlistCount: 1, playlists: [{ id: 1, name: "华语", creator: { nickname: "x", userId: 2 }, trackCount: 10, playCount: 99 }] } };
+      },
+    });
+    const { res, data } = await call("search", { keywords: "华语", type: "playlist" });
+    assert.equal(res.isError, undefined);
+    assert.deepEqual(calls.map((c) => c.path), ["/eapi/cloudsearch/pc", "/weapi/search/get"]);
+    assert.equal(data.playlists[0].name, "华语");
+    assert.equal(data.playlists[0].link, "https://music.163.com/#/playlist?id=1");
+  }
+});
+
+test("境外加密结果：有备用接口时自动回退，没有时给出明确提示", async () => {
   const { call, calls } = await connect({
-    "/weapi/cloudsearch/get/web": () => ({ code: 400, msg: "bad" }),
-    "/weapi/search/get": (d) => {
-      assert.equal(d.type, 1000);
-      return { code: 200, result: { playlistCount: 1, playlists: [{ id: 1, name: "华语", creator: { nickname: "x", userId: 2 }, trackCount: 10, playCount: 99 }] } };
-    },
+    "/weapi/toplist": () => ({ code: 200, abroad: true, result: "abcdef0123" }),
+    "/eapi/toplist": () => ({ code: 200, list: [{ id: 3778678, name: "热歌榜" }] }),
+    "/weapi/v1/album/1": () => ({ code: 200, abroad: true, result: "abcdef0123" }),
   });
-  const { data } = await call("search", { keywords: "华语", type: "playlist" });
-  assert.deepEqual(calls.map((c) => c.path), ["/weapi/cloudsearch/get/web", "/weapi/search/get"]);
-  assert.equal(data.playlists[0].name, "华语");
-  assert.equal(data.playlists[0].link, "https://music.163.com/#/playlist?id=1");
+  const top = await call("get_toplists");
+  assert.deepEqual(calls.map((c) => c.crypto), ["weapi", "eapi"]);
+  assert.equal(top.data.toplists[0].name, "热歌榜");
+  const album = await call("get_album", { id: 1 });
+  assert.equal(album.res.isError, true);
+  assert.match(album.data, /境外/);
 });
 
 test("get_playlist：trackIds 分页 + 批量歌曲详情", async () => {
@@ -174,8 +189,11 @@ test("get_playlist：trackIds 分页 + 批量歌曲详情", async () => {
 
 test("get_lyrics：去除时间轴，附带翻译", async () => {
   const { call } = await connect({
-    "/weapi/song/lyric": (d) => {
+    "/weapi/song/lyric": (d, c) => {
       assert.equal(d.id, 186016);
+      assert.match(c.cookie, /_ntes_nuid=[0-9a-f]{32}/);
+      assert.match(c.cookie, /NMTID=00O/);
+      assert.equal(c.headers.Referer, "https://music.163.com");
       return {
         code: 200,
         lrc: { lyric: '{"t":0,"c":[{"tx":"作词: 周杰伦"}]}\n[00:01.00]故事的小黄花\n[00:05.20]从出生那年就飘着\n' },

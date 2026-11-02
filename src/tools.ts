@@ -100,17 +100,16 @@ export function createServer(client: NeteaseClient): McpServer {
     ({ keywords, type, limit, offset }) =>
       run(async () => {
         const data = { s: keywords, type: SEARCH_TYPES[type], limit, offset, total: true };
+        const hasResult = (b: any) => b?.result && typeof b.result === "object";
+        // PC 客户端接口 (eapi) 优先：在境内 / 境外、登录 / 未登录状态下都返回明文结果；
+        // 失败或结果为空结构时回退到网页版的 search/get。
         let body: any;
         try {
-          ({ body } = await client.request("/api/cloudsearch/get/web", {
-            ...data,
-            hlpretag: "",
-            hlposttag: "",
-          }));
+          ({ body } = await client.request("/api/cloudsearch/pc", data, { crypto: "eapi" }));
         } catch (err) {
           if (err instanceof NeteaseError && err.code === -1) throw err;
-          ({ body } = await client.request("/api/search/get", data, { fallback: "eapi" }));
         }
+        if (!hasResult(body)) ({ body } = await client.request("/api/search/get", data));
         const r = body.result ?? {};
         switch (type) {
           case "song":
