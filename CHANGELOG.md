@@ -11,6 +11,11 @@
 - `playback_control`（仅本地）：通过系统媒体键控制播放 / 暂停、上一首、下一首、音量、静音（macOS / Windows / Linux）
 - 环境变量 `NETEASE_LOCAL_CONTROL`：stdio 模式默认开启本机控制，HTTP 模式默认关闭（设为 `1` 开启）
 
+### 验证
+
+- macOS 实机：`play_in_app` 让网易云客户端直接开始播放；`playback_control` 的暂停、下一首可用
+- Windows、Linux 仅模拟测试（检查发出的命令），尚未实机验证
+
 ### 研究记录
 
 - 网易云的"接力播放"接口（`/api/relay/play/state/submit`）提交成功但手机、电脑客户端均无反应；"一起听"面向两个不同账号。目前没有可行的云端遥控手机的方法
