@@ -2,6 +2,19 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.2.0] - 2026-11-02
+
+### 新增
+
+- `get_recent_plays`：最近播放记录（所有设备，带播放时间），可以回答"我刚才在听什么"
+- `play_in_app`（仅本地）：让电脑上的网易云客户端播放指定的歌曲 / 歌单 / 专辑 / 歌手 / 电台，使用网页版「在客户端播放」同款的 `orpheus://` 链接
+- `playback_control`（仅本地）：通过系统媒体键控制播放 / 暂停、上一首、下一首、音量、静音（macOS / Windows / Linux）
+- 环境变量 `NETEASE_LOCAL_CONTROL`：stdio 模式默认开启本机控制，HTTP 模式默认关闭（设为 `1` 开启）
+
+### 研究记录
+
+- 网易云的"接力播放"接口（`/api/relay/play/state/submit`）提交成功但手机、电脑客户端均无反应；"一起听"面向两个不同账号。目前没有可行的云端遥控手机的方法
+
 ## [0.1.1] - 2026-11-02
 
 ### 修复
@@ -30,5 +43,6 @@
 - 境外网络下登录后搜索结果为空：网易云会对境外 IP 返回加密结果，现在会自动换用其它接口
 - 升级 zod 到 4.x，修复 GHSA-mrhx-c7xc-m3w5（校验超大数组时内存耗尽）
 
+[0.2.0]: https://github.com/a2tem1sia/netease-music-mcp/releases/tag/v0.2.0
 [0.1.1]: https://github.com/a2tem1sia/netease-music-mcp/releases/tag/v0.1.1
 [0.1.0]: https://github.com/a2tem1sia/netease-music-mcp/releases/tag/v0.1.0

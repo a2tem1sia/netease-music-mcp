@@ -21,8 +21,9 @@
 | 歌词 | `get_lyrics` | 原文 + 中文翻译 + 罗马音，可选保留时间轴 | |
 | 发现 | `get_toplists` `get_similar_songs` `get_comments` | 官方排行榜、相似歌曲、热门评论 / 最新评论 | |
 | 登录 | `login_qr_start` `login_qr_check` `get_login_status` `logout` | 扫码登录，登录状态自动保存 | |
-| 我的 | `get_daily_recommendations` `get_recommended_playlists` `get_liked_songs` `get_user_playlists` `get_listening_history` | 每日推荐、推荐歌单、我喜欢的音乐、我的歌单、听歌排行 | ✅ |
+| 我的 | `get_daily_recommendations` `get_recommended_playlists` `get_liked_songs` `get_user_playlists` `get_listening_history` `get_recent_plays` | 每日推荐、推荐歌单、我喜欢的音乐、我的歌单、听歌排行、最近播放 | ✅ |
 | 修改 | `like_song` `create_playlist` `update_playlist_tracks` | 收藏 / 取消收藏、新建歌单、歌单加歌 / 删歌 | ✅ |
+| 播放（仅电脑本地） | `play_in_app` `playback_control` | 让网易云客户端播放指定歌曲 / 歌单 / 专辑，播放 / 暂停、切歌、音量（见[控制播放](#控制播放仅电脑本地)） | |
 
 结果里的 `link` 是网页链接，点开就能在浏览器或 App 里播放。
 
@@ -30,10 +31,11 @@
 
 ```mermaid
 flowchart LR
-  C["Claude<br/>Desktop / Code / claude.ai"] -- "MCP (stdio 或 HTTP)" --> S["netease-music-mcp<br/>21 个工具"]
+  C["Claude<br/>Desktop / Code / claude.ai"] -- "MCP (stdio 或 HTTP)" --> S["netease-music-mcp<br/>24 个工具"]
   S -- "weapi（网页版加密）" --> W["music.163.com"]
   S -- "eapi（PC 客户端加密）" --> E["interfacepc.music.163.com"]
   S -. "登录状态" .-> K[("~/.netease-music-mcp/cookie.json")]
+  S -. "orpheus:// 链接 / 系统媒体键（仅本地）" .-> A["电脑上的网易云客户端"]
 ```
 
 连接器把 Claude 的工具调用翻译成网易云网页版 / PC 客户端的加密请求，再把返回结果精简成适合模型阅读的格式。某个接口被拒绝（例如被识别为境外网络）时，会自动换用另一种接口重试。
@@ -105,6 +107,22 @@ https://你的域名/mcp/<MCP_AUTH_TOKEN>
 
 登录状态保存在 `~/.netease-music-mcp/cookie.json`（权限 600，只有你自己能读），可以用环境变量 `NETEASE_COOKIE_FILE` 修改位置。说"退出网易云登录"会删除这个文件。
 
+## 控制播放（仅电脑本地）
+
+连接器装在你自己的电脑上（Claude Desktop 扩展、Claude Code）时，会多出两个工具：
+
+- **`play_in_app`**：让电脑上的网易云客户端播放指定的歌曲、歌单、专辑、歌手热门歌曲或电台，客户端没开时会先启动。用的是网页版「在客户端播放」按钮同款的 `orpheus://` 链接。
+- **`playback_control`**：播放 / 暂停、上一首、下一首、调节音量、静音。通过系统媒体键实现，作用于系统当前"正在播放"的应用（正在用网易云听歌时就是网易云）；音量调节的是系统音量。
+  - **macOS**：第一次使用会弹出授权提示，到 **系统设置 → 隐私与安全性 → 辅助功能** 里打开 Claude（Claude Code 则是你的终端 App）。
+  - **Windows**：不需要额外设置。
+  - **Linux**：需要安装 `playerctl`，并且播放器支持 MPRIS。
+
+几点说明：
+
+- 远程模式（claude.ai 自定义连接器）默认**不提供**这两个工具，因为它们控制的是运行连接器的那台机器。如果你就是在自己电脑上运行 HTTP 模式，可以设置 `NETEASE_LOCAL_CONTROL=1` 打开。
+- 网易云没有公开的远程播放控制接口，所以**无法从云端控制手机上的播放**。"接力播放"接口实测提交成功但手机端没有任何反应。
+- 想知道正在听什么，可以用 `get_recent_plays`：它来自网易云的播放记录，所有设备通用，但通常比实际播放晚几分钟。
+
 ## 试试这样问
 
 - "搜一下周杰伦的《晴天》，把歌词和翻译给我"
@@ -113,6 +131,9 @@ https://你的域名/mcp/<MCP_AUTH_TOKEN>
 - "分析一下我最近一周的听歌排行，我的口味是什么样的"
 - "新建一个叫'雨天'的歌单，放 15 首安静的华语歌进去"
 - "这首歌的热门评论都在说什么？"
+- "我刚才听的那首叫什么？"
+- "用网易云放一下我的 sleep 歌单"（需要本地安装）
+- "下一首" / "暂停" / "声音小一点"（需要本地安装）
 
 修改类操作（收藏、建歌单、加歌）会改动你的真实账号，Claude 会先跟你确认。
 
@@ -173,7 +194,7 @@ src/
 
 **netease-music-mcp** is an unofficial [MCP](https://modelcontextprotocol.io) server that connects Claude to [NetEase Cloud Music](https://music.163.com) (网易云音乐), China's popular music streaming service. It is not affiliated with NetEase.
 
-- **21 tools**: search (songs, albums, artists, playlists, users, lyrics, podcasts); song, album, artist and playlist details; lyrics with translations; comments; charts; similar songs; QR-code login; daily recommendations; liked songs; your playlists; listening history; and editing playlists or liking songs. Claude asks before any change to your account.
+- **24 tools** (22 in remote mode): search (songs, albums, artists, playlists, users, lyrics, podcasts); song, album, artist and playlist details; lyrics with translations; comments; charts; similar songs; QR-code login; daily recommendations; liked songs; your playlists; listening history; editing playlists or liking songs; and, when running on your own computer, playing songs or playlists in the NetEase desktop client and controlling playback through system media keys. Claude asks before any change to your account.
 - **Install**: download the `.mcpb` from [Releases](https://github.com/a2tem1sia/netease-music-mcp/releases/latest) and open it in Claude Desktop, or run `claude mcp add netease-music -- node /path/to/dist/index.js` for Claude Code. `node dist/index.js --http` serves Streamable HTTP with token auth for claude.ai custom connectors.
 - **Login**: say "log in to NetEase Cloud Music" and scan the QR code with the NetEase app, or set `NETEASE_COOKIE` to your `MUSIC_U` cookie.
 - **Tested** against the real NetEase servers with `npm run test:live`, logged in and anonymous.

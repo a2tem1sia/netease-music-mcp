@@ -54,10 +54,10 @@ function fakeNetease(routes) {
   return { fetch, calls };
 }
 
-async function connect(routes, clientOpts = {}) {
+async function connect(routes, clientOpts = {}, serverOpts = {}) {
   const fake = fakeNetease(routes);
   const netease = new NeteaseClient({ fetch: fake.fetch, secretKey: () => KEY, jar: {}, ...clientOpts });
-  const server = createServer(netease);
+  const server = createServer(netease, serverOpts);
   const [a, b] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "1.0.0" });
   await Promise.all([server.connect(a), client.connect(b)]);
@@ -101,9 +101,10 @@ test("工具列表", async () => {
   assert.deepEqual(names, [
     "create_playlist", "get_album", "get_artist", "get_comments", "get_daily_recommendations",
     "get_liked_songs", "get_listening_history", "get_login_status", "get_lyrics", "get_playlist",
-    "get_recommended_playlists", "get_similar_songs", "get_song_detail", "get_toplists", "get_user_playlists",
+    "get_recent_plays", "get_recommended_playlists", "get_similar_songs", "get_song_detail", "get_toplists", "get_user_playlists",
     "like_song", "login_qr_check", "login_qr_start", "logout", "search", "update_playlist_tracks",
   ]);
+  assert.ok(!names.includes("play_in_app") && !names.includes("playback_control"), "默认（远程）模式不提供本机控制");
   const search = tools.find((t) => t.name === "search");
   assert.equal(search.inputSchema.properties.type.default, "song");
   assert.equal(search.annotations.readOnlyHint, true);
@@ -385,6 +386,106 @@ test("网络错误：给出可读的提示", async () => {
   assert.match(res.content[0].text, /无法连接网易云音乐服务器 \(music\.163\.com\)/);
 });
 
+test("get_recent_plays：最近播放 + 播放时间", async () => {
+  const now = Date.now();
+  const { call } = await connect(
+    {
+      "/weapi/w/nuser/account/get": () => ({ code: 200, account: { id: 42 }, profile: { userId: 42 } }),
+      "/weapi/play-record/song/list": (d) => {
+        assert.equal(d.limit, 2);
+        return { code: 200, data: { total: 3, list: [
+          { playTime: now - 3 * 60000, data: SONG(1, "刚放的") },
+          { playTime: now - 2 * 3600000, data: SONG(2, "两小时前") },
+          { playTime: now - 3 * 86400000, data: SONG(3, "多余的") },
+        ] } };
+      },
+    },
+    { jar: { MUSIC_U: "u" } },
+  );
+  const { data } = await call("get_recent_plays", { limit: 2 });
+  assert.deepEqual(data.songs.map((s) => [s.name, s.ago]), [["刚放的", "3 分钟前"], ["两小时前", "2 小时前"]]);
+  assert.match(data.songs[0].played_at, /^\d{4}-\d\d-\d\d \d\d:\d\d$/);
+});
+
+function fakeRunner(stdout = "ok") {
+  const calls = [];
+  const run = async (cmd, args) => {
+    calls.push([cmd, args]);
+    return { stdout: typeof stdout === "function" ? stdout(cmd, args) : stdout, stderr: "" };
+  };
+  return { run, calls };
+}
+
+test("本机控制：只在本地模式出现，说明文字随模式变化", async () => {
+  const local = await connect({}, {}, { localControl: true, platform: "darwin", run: fakeRunner().run });
+  const names = (await local.client.listTools()).tools.map((t) => t.name);
+  assert.ok(names.includes("play_in_app") && names.includes("playback_control"));
+  assert.equal(names.length, 24);
+  assert.match(local.client.getInstructions(), /play_in_app/);
+  const remote = await connect({});
+  assert.match(remote.client.getInstructions(), /远程模式/);
+});
+
+test("play_in_app：用网页版同款 orpheus 链接让客户端播放", async () => {
+  const { run, calls } = fakeRunner();
+  const { call } = await connect(
+    { "/weapi/v3/song/detail": () => ({ code: 200, songs: [SONG(208902, "红色高跟鞋")] }) },
+    {},
+    { localControl: true, platform: "darwin", run },
+  );
+  const { data } = await call("play_in_app", { id: 208902 });
+  assert.equal(data.success, true);
+  assert.equal(data.name, "红色高跟鞋 - 周杰伦");
+  assert.equal(calls.length, 1);
+  const [cmd, args] = calls[0];
+  assert.equal(cmd, "open");
+  assert.match(args[0], /^orpheus:\/\//);
+  assert.deepEqual(JSON.parse(Buffer.from(args[0].slice(10), "base64").toString()), {
+    type: "song", id: "208902", cmd: "play", channel: "webset",
+  });
+  // 歌单不查歌曲详情
+  const pl = await call("play_in_app", { type: "playlist", id: 18362383327 });
+  assert.equal(pl.data.success, true);
+  assert.equal(JSON.parse(Buffer.from(calls[1][1][0].slice(10), "base64").toString()).type, "playlist");
+});
+
+test("playback_control：macOS 发送媒体键；未授权时提示开启辅助功能", async () => {
+  const ok = fakeRunner();
+  const a = await connect({}, {}, { localControl: true, platform: "darwin", run: ok.run });
+  const r = await a.call("playback_control", { action: "volume_up", times: 3 });
+  assert.equal(r.data.success, true);
+  assert.equal(ok.calls.length, 3);
+  const [cmd, args] = ok.calls[0];
+  assert.equal(cmd, "osascript");
+  assert.deepEqual(args.slice(0, 3), ["-l", "JavaScript", "-e"]);
+  assert.match(args[3], /\(0 << 16\)/); // NX_KEYTYPE_SOUND_UP = 0
+  // 脚本本身是合法的 JavaScript
+  assert.doesNotThrow(() => new Function(args[3] + "\nreturn run;"));
+
+  const denied = fakeRunner("untrusted\n");
+  const b = await connect({}, {}, { localControl: true, platform: "darwin", run: denied.run });
+  const r2 = await b.call("playback_control", { action: "play_pause" });
+  assert.equal(r2.res.isError, true);
+  assert.match(r2.data, /辅助功能/);
+});
+
+test("playback_control：Windows 用 PowerShell 发虚拟键，Linux 用 playerctl", async () => {
+  const win = fakeRunner();
+  const w = await connect({}, {}, { localControl: true, platform: "win32", run: win.run });
+  await w.call("playback_control", { action: "next" });
+  assert.equal(win.calls[0][0], "powershell");
+  assert.match(win.calls[0][1].at(-1), /keybd_event\(0xB0, 0, 1,/);
+  await w.call("play_in_app", { type: "album", id: 1 });
+  assert.deepEqual(win.calls[1].slice(0, 1), ["rundll32"]);
+
+  const lin = fakeRunner();
+  const l = await connect({}, {}, { localControl: true, platform: "linux", run: lin.run });
+  await l.call("playback_control", { action: "previous" });
+  assert.deepEqual(lin.calls[0], ["playerctl", ["previous"]]);
+  const mute = await l.call("playback_control", { action: "mute" });
+  assert.equal(mute.res.isError, true);
+});
+
 test("HTTP 模式：令牌鉴权 + Streamable HTTP", async () => {
   const fake = fakeNetease({
     "/weapi/v1/album/18915": () => ({ code: 200, album: { id: 18915, name: "叶惠美", artist: { name: "周杰伦" }, publishTime: 1059580800000, size: 11 }, songs: [SONG(186016, "晴天")] }),
@@ -402,7 +503,8 @@ test("HTTP 模式：令牌鉴权 + Streamable HTTP", async () => {
     // 1) 令牌放在路径中
     const c1 = new Client({ name: "t", version: "1" });
     await c1.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp/${token}`)));
-    assert.equal((await c1.listTools()).tools.length, 21);
+    assert.equal((await c1.listTools()).tools.length, 22);
+    assert.ok(!(await c1.listTools()).tools.some((t) => t.name === "playback_control"), "HTTP 模式默认不提供本机控制");
     const r = await c1.callTool({ name: "get_album", arguments: { id: 18915 } });
     const album = JSON.parse(r.content[0].text);
     assert.equal(album.album.publish_date, "2003-07-30");
@@ -414,7 +516,7 @@ test("HTTP 模式：令牌鉴权 + Streamable HTTP", async () => {
     await c2.connect(
       new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }),
     );
-    assert.equal((await c2.listTools()).tools.length, 21);
+    assert.equal((await c2.listTools()).tools.length, 22);
     await c2.close();
   } finally {
     http.close();
