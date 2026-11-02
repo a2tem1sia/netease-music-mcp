@@ -24,7 +24,7 @@
 
 ### 方式一：Claude Desktop 一键安装（推荐）
 
-1. 获取安装包：克隆本仓库后运行 `npm install && npm run pack:mcpb`，会生成 `netease-music-mcp-0.1.0.mcpb`。
+1. 从 [Releases](https://github.com/a2tem1sia/netease-music-mcp/releases/latest) 下载 `netease-music-mcp-0.1.0.mcpb`（或者克隆本仓库后运行 `npm install && npm run pack:mcpb` 自己生成）。
 2. 双击这个 `.mcpb` 文件，或者把它拖进 Claude Desktop 的 **设置 → 扩展** 页面。
 3. 点 **安装**。Cookie 那一栏留空即可。
 4. 在对话里说"**登录网易云**"，用网易云音乐 App 扫描二维码。
