@@ -1,0 +1,52 @@
+{
+  "name": "netease-music-mcp",
+  "version": "0.1.0",
+  "description": "网易云音乐 MCP connector：搜索、歌单、歌词、评论、每日推荐、扫码登录、歌单管理",
+  "type": "module",
+  "license": "MIT",
+  "author": "a2tem1sia",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/a2tem1sia/netease-music-mcp.git"
+  },
+  "homepage": "https://github.com/a2tem1sia/netease-music-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/a2tem1sia/netease-music-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "netease",
+    "netease-cloud-music",
+    "网易云音乐"
+  ],
+  "bin": {
+    "netease-music-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "start:http": "node dist/index.js --http",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "pack:mcpb": "npm run build && node scripts/pack-mcpb.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "qrcode": "^1.5.4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
+    "@types/node": "^22.10.0",
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^5.7.0"
+  }
+}
