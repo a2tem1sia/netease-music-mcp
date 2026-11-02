@@ -1,0 +1,15 @@
+name: 功能建议 / Feature request
+description: 想让连接器支持的新功能
+labels: [enhancement]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: 想做什么
+      description: 例如“让 Claude 帮我把听歌排行做成年度总结”
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 使用场景

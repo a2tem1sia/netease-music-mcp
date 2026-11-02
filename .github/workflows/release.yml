@@ -1,0 +1,35 @@
+# 在 GitHub 网页上发布 Release 后，自动构建 .mcpb 并附加到这个 Release。
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  mcpb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Check tag matches package.json version
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$version" != "${{ github.event.release.tag_name }}" ]; then
+            echo "::error::Release tag ${{ github.event.release.tag_name }} does not match package.json version $version"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm test
+      - run: npm run pack:mcpb
+      - name: Upload .mcpb to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" netease-music-mcp-*.mcpb --clobber

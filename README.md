@@ -1,5 +1,13 @@
 # 网易云音乐 MCP Connector（非官方）
 
+[![CI](https://github.com/a2tem1sia/netease-music-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/a2tem1sia/netease-music-mcp/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/a2tem1sia/netease-music-mcp?label=release)](https://github.com/a2tem1sia/netease-music-mcp/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Node.js >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
+[![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](https://modelcontextprotocol.io)
+
+中文 · [English](#english)
+
 让 Claude 直接访问网易云音乐：搜歌、看歌单 / 专辑 / 歌手 / 歌词 / 评论 / 排行榜，扫码登录后还能看每日推荐、"我喜欢的音乐"、听歌排行，以及新建歌单、往歌单里加歌、收藏歌曲。
 
 > 本项目与网易公司无关。网易云音乐没有公开 API，这里用的是网页版 (music.163.com) 自己调用的接口，网易改接口时可能需要更新。
@@ -18,9 +26,21 @@
 
 结果里的 `link` 是网页链接，点开就能在浏览器或 App 里播放。
 
+## 工作原理
+
+```mermaid
+flowchart LR
+  C["Claude<br/>Desktop / Code / claude.ai"] -- "MCP (stdio 或 HTTP)" --> S["netease-music-mcp<br/>21 个工具"]
+  S -- "weapi（网页版加密）" --> W["music.163.com"]
+  S -- "eapi（PC 客户端加密）" --> E["interfacepc.music.163.com"]
+  S -. "登录状态" .-> K[("~/.netease-music-mcp/cookie.json")]
+```
+
+连接器把 Claude 的工具调用翻译成网易云网页版 / PC 客户端的加密请求，再把返回结果精简成适合模型阅读的格式。某个接口被拒绝（例如被识别为境外网络）时，会自动换用另一种接口重试。
+
 ## 安装
 
-需要 [Node.js](https://nodejs.org) 18.17 或更新版本（用 `.mcpb` 一键安装时，Claude Desktop 会使用自带的 Node）。
+需要 [Node.js](https://nodejs.org) 20 或更新版本（用 `.mcpb` 一键安装时，Claude Desktop 会使用自带的 Node）。
 
 ### 方式一：Claude Desktop 一键安装（推荐）
 
@@ -144,3 +164,17 @@ src/
 - [Claude](https://claude.com/claude-code)：AI 结对编程（通过 Claude Code）
 
 欢迎提交 issue 和 pull request。
+
+版本记录见 [CHANGELOG.md](CHANGELOG.md)。
+
+---
+
+## English
+
+**netease-music-mcp** is an unofficial [MCP](https://modelcontextprotocol.io) server that connects Claude to [NetEase Cloud Music](https://music.163.com) (网易云音乐), China's popular music streaming service. It is not affiliated with NetEase.
+
+- **21 tools**: search (songs, albums, artists, playlists, users, lyrics, podcasts); song, album, artist and playlist details; lyrics with translations; comments; charts; similar songs; QR-code login; daily recommendations; liked songs; your playlists; listening history; and editing playlists or liking songs. Claude asks before any change to your account.
+- **Install**: download the `.mcpb` from [Releases](https://github.com/a2tem1sia/netease-music-mcp/releases/latest) and open it in Claude Desktop, or run `claude mcp add netease-music -- node /path/to/dist/index.js` for Claude Code. `node dist/index.js --http` serves Streamable HTTP with token auth for claude.ai custom connectors.
+- **Login**: say "log in to NetEase Cloud Music" and scan the QR code with the NetEase app, or set `NETEASE_COOKIE` to your `MUSIC_U` cookie.
+- **Tested** against the real NetEase servers with `npm run test:live`, logged in and anonymous.
+- Uses the undocumented web (weapi) and PC client (eapi) endpoints, which NetEase may change at any time.
