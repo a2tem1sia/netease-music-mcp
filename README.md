@@ -117,6 +117,8 @@ https://你的域名/mcp/<MCP_AUTH_TOKEN>
 npm install
 npm test            # 编译 + 运行测试（使用本地模拟的网易云服务器，不访问外网）
 npm run pack:mcpb   # 生成 Claude Desktop 扩展 netease-music-mcp-<版本>.mcpb
+npm run test:live   # 连真实的网易云逐个调用只读工具（不会修改账号）
+                    #   加 NETEASE_COOKIE=<MUSIC_U> 可同时测试需要登录的接口
 ```
 
 源码结构：

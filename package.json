@@ -36,7 +36,8 @@
     "start": "node dist/index.js",
     "start:http": "node dist/index.js --http",
     "test": "npm run build && node --test test/*.test.mjs",
-    "pack:mcpb": "npm run build && node scripts/pack-mcpb.mjs"
+    "pack:mcpb": "npm run build && node scripts/pack-mcpb.mjs",
+    "test:live": "npm run build && node scripts/live-test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
