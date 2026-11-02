@@ -135,3 +135,10 @@ src/
 ```
 
 接口与加密参考了开源项目 NeteaseCloudMusicApi。
+
+## 贡献者
+
+- [@a2tem1sia](https://github.com/a2tem1sia)：作者、维护者
+- [Claude](https://claude.com/claude-code)：AI 结对编程（通过 Claude Code）
+
+欢迎提交 issue 和 pull request。

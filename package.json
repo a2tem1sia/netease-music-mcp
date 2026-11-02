@@ -5,6 +5,16 @@
   "type": "module",
   "license": "MIT",
   "author": "a2tem1sia",
+  "contributors": [
+    {
+      "name": "a2tem1sia",
+      "url": "https://github.com/a2tem1sia"
+    },
+    {
+      "name": "Claude",
+      "url": "https://claude.com/claude-code"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/a2tem1sia/netease-music-mcp.git"
