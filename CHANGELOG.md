@@ -2,6 +2,23 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.3.0] - 2026-11-25
+
+### 新增
+
+- **Gemini CLI 扩展**：`gemini extensions install https://github.com/a2tem1sia/netease-music-mcp` 一条命令安装。包含 `gemini-extension.json`、`GEMINI.md`（使用说明）和可选的 Cookie 设置；Release 会附带 Gemini CLI 按平台挑选的 `darwin.` / `linux.` / `win32.` 归档（`npm run pack:gemini`）
+- Gemini 网页版开发者模式（Gemini Apps Developer Mode）的接入说明（尚未验证）
+
+### 改进
+
+- 工具参数里的 ID 改用 `minimum: 1` 而不是 `exclusiveMinimum`，兼容更多 MCP 客户端
+- 歌词工具和服务器说明里提醒 AI 不要整段输出歌词原文
+
+### 验证
+
+- 用官方 Gemini CLI（0.71.1）安装扩展归档：扩展、MCP 服务器、`GEMINI.md` 均被识别，`gemini mcp list` 显示已连接
+- Gemini 网页版未实测（需要用户账号和公网地址）
+
 ## [0.2.0] - 2026-11-02
 
 ### 新增
@@ -48,6 +65,7 @@
 - 境外网络下登录后搜索结果为空：网易云会对境外 IP 返回加密结果，现在会自动换用其它接口
 - 升级 zod 到 4.x，修复 GHSA-mrhx-c7xc-m3w5（校验超大数组时内存耗尽）
 
+[0.3.0]: https://github.com/a2tem1sia/netease-music-mcp/releases/tag/v0.3.0
 [0.2.0]: https://github.com/a2tem1sia/netease-music-mcp/releases/tag/v0.2.0
 [0.1.1]: https://github.com/a2tem1sia/netease-music-mcp/releases/tag/v0.1.1
 [0.1.0]: https://github.com/a2tem1sia/netease-music-mcp/releases/tag/v0.1.0

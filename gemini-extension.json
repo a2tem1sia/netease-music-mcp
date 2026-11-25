@@ -1,0 +1,21 @@
+{
+  "name": "netease-music-mcp",
+  "version": "0.3.0",
+  "description": "非官方网易云音乐扩展：搜歌、歌词、歌单、排行榜、每日推荐、扫码登录、管理歌单，并能控制电脑上的网易云客户端播放。",
+  "mcpServers": {
+    "netease-music": {
+      "command": "node",
+      "args": ["${extensionPath}${/}dist${/}index.js"],
+      "cwd": "${extensionPath}"
+    }
+  },
+  "contextFileName": "GEMINI.md",
+  "settings": [
+    {
+      "name": "网易云 Cookie（可选）",
+      "description": "留空即可，之后对 Gemini 说“登录网易云”扫码登录。扫码被风控拦截时，可以填浏览器里 music.163.com 的 MUSIC_U 值。",
+      "envVar": "NETEASE_COOKIE",
+      "sensitive": true
+    }
+  ]
+}

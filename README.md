@@ -8,7 +8,7 @@
 
 中文 · [English](#english)
 
-让 Claude 直接访问网易云音乐：搜歌、看歌单 / 专辑 / 歌手 / 歌词 / 评论 / 排行榜，扫码登录后还能看每日推荐、"我喜欢的音乐"、听歌排行，以及新建歌单、往歌单里加歌、收藏歌曲。
+让 Claude、Gemini 等 AI 直接访问网易云音乐：搜歌、看歌单 / 专辑 / 歌手 / 歌词 / 评论 / 排行榜，扫码登录后还能看每日推荐、"我喜欢的音乐"、听歌排行，以及新建歌单、往歌单里加歌、收藏歌曲。
 
 > 本项目与网易公司无关。网易云音乐没有公开 API，这里用的是网页版 (music.163.com) 自己调用的接口，网易改接口时可能需要更新。
 
@@ -31,14 +31,14 @@
 
 ```mermaid
 flowchart LR
-  C["Claude<br/>Desktop / Code / claude.ai"] -- "MCP (stdio 或 HTTP)" --> S["netease-music-mcp<br/>24 个工具"]
+  C["Claude · Gemini<br/>（以及其它 MCP 客户端）"] -- "MCP (stdio 或 HTTP)" --> S["netease-music-mcp<br/>24 个工具"]
   S -- "weapi（网页版加密）" --> W["music.163.com"]
   S -- "eapi（PC 客户端加密）" --> E["interfacepc.music.163.com"]
   S -. "登录状态" .-> K[("~/.netease-music-mcp/cookie.json")]
   S -. "orpheus:// 链接 / 系统媒体键（仅本地）" .-> A["电脑上的网易云客户端"]
 ```
 
-连接器把 Claude 的工具调用翻译成网易云网页版 / PC 客户端的加密请求，再把返回结果精简成适合模型阅读的格式。某个接口被拒绝（例如被识别为境外网络）时，会自动换用另一种接口重试。
+连接器是一个标准的 MCP 服务器，把 AI 的工具调用翻译成网易云网页版 / PC 客户端的加密请求，再把返回结果精简成适合模型阅读的格式。某个接口被拒绝（例如被识别为境外网络）时，会自动换用另一种接口重试。
 
 ## 安装
 
@@ -92,9 +92,42 @@ https://你的域名/mcp/<MCP_AUTH_TOKEN>
 - 健康检查：`GET /healthz`。
 - 服务器最好在中国大陆或网易云能正常访问的地区，否则部分接口可能受限。
 
+## 在 Gemini 里使用
+
+连接器是标准的 [MCP](https://modelcontextprotocol.io) 服务器，所以除了 Claude，也能接入 Gemini。
+
+### Gemini CLI（推荐）
+
+```bash
+gemini extensions install https://github.com/a2tem1sia/netease-music-mcp
+```
+
+- Gemini CLI 会从最新的 Release 下载已经编译好的扩展（`darwin.` / `linux.` / `win32.` 开头的归档），不需要自己构建。
+- 安装时会问"网易云 Cookie（可选）"，**直接回车跳过**即可，之后在 Gemini CLI 里说"登录网易云"扫码。Gemini CLI 可能会提示这项设置"missing"，不影响使用。以后想填可以运行 `gemini extensions config netease-music-mcp`。
+- 扩展自带 `GEMINI.md`，会告诉 Gemini 怎么用这些工具（先搜 ID 再播放、修改账号前先确认等）。
+- macOS 上第一次用播放控制时，要在 **系统设置 → 隐私与安全性 → 辅助功能** 里允许你运行 Gemini CLI 的终端 App（比如"终端"或 iTerm）。
+- 更新：`gemini extensions update netease-music-mcp`。
+
+不想用扩展的话，也可以在 `~/.gemini/settings.json` 里手动添加（先在本仓库运行 `npm install && npm run build`）：
+
+```json
+{
+  "mcpServers": {
+    "netease-music": {
+      "command": "node",
+      "args": ["/绝对路径/netease-music-mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+### Gemini 网页版
+
+Google 为 Gemini 网页版推出了开发者模式（Gemini Apps Developer Mode，入口在设置里，或直接打开 gemini.google.com/devmode），可以用 **+ Create new** 添加自定义 MCP 服务器，MCP 服务器 URL 填部署好的 HTTP 模式地址（见上面"方式四"）：`https://你的域名/mcp/<MCP_AUTH_TOKEN>`。我还没能确认它是否支持"无认证"：如果认证方式里只有 OAuth，目前就接不上。欢迎试过的人反馈。
+
 ## 登录
 
-**扫码登录（推荐）**：对 Claude 说"登录网易云"。Claude 会调用 `login_qr_start` 显示二维码（图片，或者一段由方块字符组成的二维码），用网易云音乐 App 右上角的"扫一扫"扫码并在手机上确认，再让 Claude 检查登录状态。
+**扫码登录（推荐）**：对 Claude（或 Gemini）说"登录网易云"。它会调用 `login_qr_start` 显示二维码（图片，或者一段由方块字符组成的二维码），用网易云音乐 App 右上角的"扫一扫"扫码并在手机上确认，再让 Claude 检查登录状态。
 
 如果看不到二维码图片：图片也保存在系统临时目录的 `netease-music-login-qr.png`（具体路径见返回结果中的 `qr_image_path`）。
 
@@ -126,7 +159,7 @@ https://你的域名/mcp/<MCP_AUTH_TOKEN>
 
 ## 试试这样问
 
-- "搜一下周杰伦的《晴天》，把歌词和翻译给我"
+- "周杰伦的《晴天》歌词讲了一个什么故事？"
 - "网易云热歌榜现在前 20 是哪些歌？"
 - "看看我今天的每日推荐，挑 5 首适合写代码时听的"
 - "分析一下我最近一周的听歌排行，我的口味是什么样的"
@@ -161,6 +194,7 @@ https://你的域名/mcp/<MCP_AUTH_TOKEN>
 npm install
 npm test            # 编译 + 运行测试（使用本地模拟的网易云服务器，不访问外网）
 npm run pack:mcpb   # 生成 Claude Desktop 扩展 netease-music-mcp-<版本>.mcpb
+npm run pack:gemini # 生成 Gemini CLI 扩展归档（darwin. / linux. / win32. 开头）
 npm run test:live   # 连真实的网易云逐个调用只读工具（不会修改账号）
                     #   加 NETEASE_COOKIE=<MUSIC_U> 可同时测试需要登录的接口
 ```
@@ -193,10 +227,11 @@ src/
 
 ## English
 
-**netease-music-mcp** is an unofficial [MCP](https://modelcontextprotocol.io) server that connects Claude to [NetEase Cloud Music](https://music.163.com) (网易云音乐), China's popular music streaming service. It is not affiliated with NetEase.
+**netease-music-mcp** is an unofficial [MCP](https://modelcontextprotocol.io) server that connects Claude, Gemini and other MCP clients to [NetEase Cloud Music](https://music.163.com) (网易云音乐), China's popular music streaming service. It is not affiliated with NetEase.
 
 - **24 tools** (22 in remote mode): search (songs, albums, artists, playlists, users, lyrics, podcasts); song, album, artist and playlist details; lyrics with translations; comments; charts; similar songs; QR-code login; daily recommendations; liked songs; your playlists; listening history; editing playlists or liking songs; and, when running on your own computer, playing songs or playlists in the NetEase desktop client and controlling playback through system media keys. Claude asks before any change to your account.
 - **Install**: download the `.mcpb` from [Releases](https://github.com/a2tem1sia/netease-music-mcp/releases/latest) and open it in Claude Desktop, or run `claude mcp add netease-music -- node /path/to/dist/index.js` for Claude Code. `node dist/index.js --http` serves Streamable HTTP with token auth for claude.ai custom connectors.
+- **Gemini CLI**: `gemini extensions install https://github.com/a2tem1sia/netease-music-mcp` installs a prebuilt extension from the latest release.
 - **Login**: say "log in to NetEase Cloud Music" and scan the QR code with the NetEase app, or set `NETEASE_COOKIE` to your `MUSIC_U` cookie.
 - **Tested** against the real NetEase servers with `npm run test:live`, logged in and anonymous.
 - Uses the undocumented web (weapi) and PC client (eapi) endpoints, which NetEase may change at any time.

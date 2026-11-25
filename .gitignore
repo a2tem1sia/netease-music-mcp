@@ -3,3 +3,4 @@ dist/
 build/
 *.mcpb
 *.zip
+*.tar.gz
