@@ -30,9 +30,7 @@
     "netease",
     "netease-cloud-music",
     "网易云音乐",
-    "chatgpt",
-    "gemini-cli-extension",
-    "codex"
+    "gemini-cli-extension"
   ],
   "bin": {
     "netease-music-mcp": "dist/index.js"
