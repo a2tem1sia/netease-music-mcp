@@ -1,6 +1,6 @@
 {
   "name": "netease-music-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "网易云音乐 MCP connector：搜索、歌单、歌词、评论、每日推荐、扫码登录、歌单管理",
   "type": "module",
   "license": "MIT",
@@ -29,7 +29,10 @@
     "claude",
     "netease",
     "netease-cloud-music",
-    "网易云音乐"
+    "网易云音乐",
+    "chatgpt",
+    "gemini-cli-extension",
+    "codex"
   ],
   "bin": {
     "netease-music-mcp": "dist/index.js"
@@ -47,7 +50,8 @@
     "start:http": "node dist/index.js --http",
     "test": "npm run build && node --test test/*.test.mjs",
     "pack:mcpb": "npm run build && node scripts/pack-mcpb.mjs",
-    "test:live": "npm run build && node scripts/live-test.mjs"
+    "test:live": "npm run build && node scripts/live-test.mjs",
+    "pack:gemini": "npm run build && node scripts/pack-gemini.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

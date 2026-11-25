@@ -85,6 +85,33 @@ const SONG = (id, name) => ({
   alia: [],
 });
 
+test("版本号一致：package.json / manifest.json / gemini-extension.json / 服务器", async () => {
+  const read = (f) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8"));
+  const pkg = read("package.json");
+  const { SERVER_VERSION } = await import("../dist/tools.js");
+  assert.equal(read("manifest.json").version, pkg.version);
+  assert.equal(read("gemini-extension.json").version, pkg.version);
+  assert.equal(SERVER_VERSION, pkg.version);
+});
+
+test("Gemini CLI 扩展清单", () => {
+  const ext = JSON.parse(readFileSync(new URL("../gemini-extension.json", import.meta.url), "utf8"));
+  assert.match(ext.name, /^[a-z0-9-]+$/);
+  assert.equal(ext.name, "netease-music-mcp");
+  const server = ext.mcpServers["netease-music"];
+  assert.equal(server.command, "node");
+  assert.deepEqual(server.args, ["${extensionPath}${/}dist${/}index.js"]);
+  assert.equal(ext.contextFileName, "GEMINI.md");
+  assert.ok(existsSync(new URL("../GEMINI.md", import.meta.url)));
+  assert.deepEqual(ext.settings.map((x) => [x.envVar, x.sensitive]), [["NETEASE_COOKIE", true]]);
+});
+
+test("工具参数 schema 不使用 exclusiveMinimum（兼容更多客户端）", async () => {
+  const { client } = await connect({}, {}, { localControl: true, platform: "darwin", run: async () => ({ stdout: "ok", stderr: "" }) });
+  const { tools } = await client.listTools();
+  assert.equal(JSON.stringify(tools.map((t) => t.inputSchema)).includes("exclusiveMinimum"), false);
+});
+
 test("cookie 解析", () => {
   assert.deepEqual(parseCookieString("abc123"), { MUSIC_U: "abc123" });
   assert.deepEqual(parseCookieString("MUSIC_U=a=b; __csrf=c"), { MUSIC_U: "a=b", __csrf: "c" });

@@ -1,4 +1,4 @@
-# 在 GitHub 网页上发布 Release 后，自动构建 .mcpb 并附加到这个 Release。
+# 在 GitHub 网页上发布 Release 后，自动构建 .mcpb（Claude Desktop）和 Gemini CLI 扩展归档，并附加到这个 Release。
 # 也可以在 Actions → Release → Run workflow 手动运行，为已有的 Release 重新构建并替换安装包
 # （例如编辑了 Release 而不是新建，自动构建没有触发时）。
 name: Release
@@ -39,7 +39,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run pack:mcpb
-      - name: Upload .mcpb to the release
+      - run: npm run pack:gemini
+      - name: Upload .mcpb and Gemini CLI extension archives to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" netease-music-mcp-*.mcpb --clobber
+        run: gh release upload "$TAG" netease-music-mcp-*.mcpb darwin.netease-music-mcp.tar.gz linux.netease-music-mcp.tar.gz win32.netease-music-mcp.zip --clobber

@@ -11,7 +11,7 @@ import * as F from "./format.js";
 import { APP_RESOURCE_TYPES, MEDIA_ACTIONS, type Runner, defaultRunner, openUrl, orpheusPlayUrl, sendMediaKey } from "./local.js";
 
 export const SERVER_NAME = "netease-music";
-export const SERVER_VERSION = "0.2.0";
+export const SERVER_VERSION = "0.3.0";
 
 const BASE_INSTRUCTIONS = `网易云音乐 (music.163.com) 连接器。
 - 歌曲、歌单、专辑、歌手都用数字 ID 标识。先用 search 找到 ID，再用 get_* 工具查看详情。
@@ -20,6 +20,7 @@ const BASE_INSTRUCTIONS = `网易云音乐 (music.163.com) 连接器。
   调用 login_qr_start 获得二维码，请用户用网易云音乐 App 扫码并确认，然后调用 login_qr_check。
 - 返回结果里的 link 是网页链接，可以直接给用户点开播放。
 - 修改类操作（like_song、create_playlist、update_playlist_tracks）会改动用户的真实账号，执行前先向用户确认。
+- get_lyrics 返回的是完整歌词，供你理解歌曲；回复用户时不要整段输出歌词原文，引用一两句或概括内容即可。
 - get_recent_plays 返回最近播放记录（所有设备，通常有几分钟延迟），可以回答“我刚才在听什么”。`;
 
 const LOCAL_INSTRUCTIONS = `
@@ -47,7 +48,7 @@ function agoText(ms: number): string {
   return `${Math.round(h / 24)} 天前`;
 }
 
-const id = (what: string) => z.coerce.number().int().positive().describe(`${what} ID（数字）`);
+const id = (what: string) => z.coerce.number().int().min(1).describe(`${what} ID（数字）`);
 const limit = (def: number, max: number) =>
   z.coerce.number().int().min(1).max(max).default(def).describe(`返回条数，默认 ${def}，最多 ${max}`);
 const offset = z.coerce.number().int().min(0).default(0).describe("分页偏移量，默认 0");
@@ -190,7 +191,7 @@ export function createServer(client: NeteaseClient, opts: ServerOptions = {}): M
     "get_lyrics",
     {
       title: "获取歌词",
-      description: "获取歌曲歌词，包括原文、中文翻译和罗马音（如果有）。",
+      description: "获取歌曲歌词，包括原文、中文翻译和罗马音（如果有），用于理解和讨论歌曲内容。回复用户时不要整段输出歌词原文，引用一两句或概括即可。",
       inputSchema: {
         id: id("歌曲"),
         with_timestamps: z
@@ -520,7 +521,7 @@ export function createServer(client: NeteaseClient, opts: ServerOptions = {}): M
 
   // ------------------------------------------------------------------ 个人数据（需登录）
 
-  const uidParam = z.coerce.number().int().positive().optional().describe("用户 ID；不填则为当前登录用户");
+  const uidParam = z.coerce.number().int().min(1).optional().describe("用户 ID；不填则为当前登录用户");
 
   server.registerTool(
     "get_user_playlists",

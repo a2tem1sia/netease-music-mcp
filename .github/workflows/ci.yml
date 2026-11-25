@@ -45,8 +45,17 @@ jobs:
       - run: npm ci
       - run: npm audit --omit=dev
       - run: npm run pack:mcpb
+      - run: npm run pack:gemini
       - uses: actions/upload-artifact@v7
         with:
           name: netease-music-mcp-mcpb
           path: netease-music-mcp-*.mcpb
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: netease-music-mcp-gemini-extension
+          path: |
+            darwin.netease-music-mcp.tar.gz
+            linux.netease-music-mcp.tar.gz
+            win32.netease-music-mcp.zip
           if-no-files-found: error
